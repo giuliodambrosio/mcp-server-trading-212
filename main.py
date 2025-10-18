@@ -10,7 +10,7 @@ from api_client_212 import Client212
 load_dotenv()
 client = Client212(os.getenv('212_API_KEY_ID'), os.getenv('212_API_KEY_SECRET'), os.getenv('212_API_BASE_LIVE_URL'))
 mcp = FastMCP("212-trading",
-              instructions="A tool to interact with the 212 Trading API to manage my own ISA account in GBP. On the platform they use 'instruments' : they can be stocks, ETFs, etc. Don't try to guess the instrument tickers: instead get the full list of available ticker symbols using get_instrument_tickers or get_instrument: prefer using the first call, since the second call output can be too large. You can then get the full details for just the symbols that you need to know about")
+              instructions="A tool to interact with the 212 Trading API to manage my own account. Prices are in the currency defined in account info. They're often expressed in cents. On the platform they use the concept of 'instruments' : they can be stocks, ETFs, etc. Don't try to guess the instrument tickers: instead get the full list of available ticker symbols using get_instrument_tickers or get_instrument: prefer using the first call, since the second call output can be too large. You can then get the full details for just the symbols that you need to know about")
 
 
 async def represent_response(response: Awaitable[Any]) -> str:
