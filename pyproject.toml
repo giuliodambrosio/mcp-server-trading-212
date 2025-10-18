@@ -1,0 +1,11 @@
+[project]
+name = "mcp-server-212-trading"
+version = "0.1.0"
+description = "212 Trading mcp (cli) server. A tool that connects to a single 212 trading account. Works with Claude"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "dotenv>=0.9.9",
+    "httpx>=0.28.1",
+    "mcp[cli]>=1.18.0",
+]
