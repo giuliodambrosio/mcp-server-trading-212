@@ -10,7 +10,7 @@ from api_client_212 import Client212
 load_dotenv()
 client = Client212(os.getenv('212_API_KEY_ID'), os.getenv('212_API_KEY_SECRET'), os.getenv('212_API_BASE_LIVE_URL'))
 mcp = FastMCP("212-trading",
-              instructions="A tool to interact with the 212 Trading API to manage my own ISA account in GBP. Instruments are stocks and ETFs. Their prices are often in GBP cents. Can get the full list of ticker symbols using get_instruments")
+              instructions="A tool to interact with the 212 Trading API to manage my own ISA account in GBP. On the platform they use 'instruments' : they can be stocks, ETFs, etc. Don't try to guess the instrument tickers: instead get the full list of available ticker symbols using get_instrument_tickers or get_instrument: prefer using the first call, since the second call output can be too large. You can then get the full details for just the symbols that you need to know about")
 
 
 async def represent_response(response: Awaitable[Any]) -> str:
@@ -95,26 +95,33 @@ async def get_orders() -> str:
 
 @mcp.tool(
     title="Place an order to buy or sell a specific instrument at market price. If extended_hours is True, the order will be placed in after hours markets if the exchange is closed.")
-async def place_market_order(ticker: str, quantity: int, extended_hours: bool = False) -> str:
+async def place_market_order(ticker: str, quantity: float, extended_hours: bool = False) -> str:
     """Place an order on 212 Trading API."""
     return await represent_response(client.place_market_order(quantity, ticker, extended_hours))
 
 
 @mcp.tool(
-    title="Place a limit order to buy or sell a specific instrument at a specified price. The order can have two values: DAY or GOOD_TILL_CANCEL")
-async def place_limit_order(ticker: str, quantity: int, price: int, time_validity: str) -> str:
+    title="Place a limit order to buy or sell a specific instrument at a specified price. The order time_validity parameter can have two values: DAY or GOOD_TILL_CANCEL")
+async def place_limit_order(ticker: str, quantity: float, limit_price: float, time_validity: str) -> str:
     """Place a limit order on 212 Trading API."""
     return await represent_response(
-        client.place_limit_order(price, quantity, ticker, Client212.TimeValidity(time_validity)))
+        client.place_limit_order(limit_price=limit_price, quantity=quantity, ticker=ticker, time_validity=Client212.TimeValidity(time_validity)))
 
 
 @mcp.tool(
-    title="Place a stop order to buy or sell a specific instrument when it reaches a specified price. The order can have two values: DAY or GOOD_TILL_CANCEL")
-async def place_stop_order(ticker: str, quantity: int, stop_price: int, time_validity: str) -> str:
+    title="Place a stop order to buy or sell a specific instrument when it reaches a specified price. The order time_validity parameter can have two values: DAY or GOOD_TILL_CANCEL")
+async def place_stop_order(ticker: str, quantity: float, stop_price: float, time_validity: str) -> str:
     """Place a stop order on 212 Trading API."""
     return await represent_response(
-        client.place_stop_order(stop_price, quantity, ticker, Client212.TimeValidity(time_validity)))
+        client.place_stop_order(stop_price=stop_price, quantity=quantity, ticker=ticker, time_validity=Client212.TimeValidity(time_validity)))
 
+@mcp.tool(
+    title="Place a stop-limit order to buy or sell a specific instrument when it reaches a specified stop price, but only at a specified limit price or better. The order time_validity parameter can have two values: DAY or GOOD_TILL_CANCEL")
+async def place_stop_limit_order(ticker: str, quantity: float, stop_price: float, limit_price: float,
+                                 time_validity: str) -> str:
+    """Place a stop-limit order on 212 Trading API."""
+    return await represent_response(
+        client.place_stop_limit_order(stop_price=stop_price, limit_price=limit_price, quantity=quantity, ticker=ticker, time_validity=Client212.TimeValidity(time_validity)))
 
 @mcp.tool(title="Cancel an existing order by its ID")
 async def cancel_order(order_id: int) -> str:

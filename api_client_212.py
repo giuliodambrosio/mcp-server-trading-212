@@ -28,7 +28,6 @@ class RateLimit:
         if self.reset and self.remaining == 0:
             wait_time = self.reset - time.time()
             if wait_time > 0:
-                # print(f"{self.color}rate limit exceeded. Waiting for {round(wait_time, 1)} seconds until reset.{self.color_reset}")
                 time.sleep(wait_time + 1)  # Sleep until reset plus a buffer
 
     @staticmethod
@@ -40,7 +39,6 @@ class RateLimit:
             reset=int(headers.get('x-ratelimit-reset', 0)),
             used=int(headers.get('x-ratelimit-used', 0)),
         )
-        #        print(f"{self.color}updated RateLimit from headers: {limits}{self.color_reset}")
         return limits
 
 
@@ -112,7 +110,6 @@ class Client212:
 
     async def get(self, path: str) -> dict:
         url = self.make_url(path)
-        # print(f"{self.color}-- 212 GET  {url}{self.color_reset}")
         headers = self.make_headers()
         async with httpx.AsyncClient() as client:
             response = await self.adjust_to_rate_limits(lambda: client.get(url, headers=headers))
@@ -121,7 +118,6 @@ class Client212:
 
     async def post(self, path: str, data: dict) -> dict:
         url = self.make_url(path)
-        # print(f"{self.color}-- 212 POST {url}{self.color_reset}")
         headers = self.make_headers()
         async with httpx.AsyncClient() as client:
             response = await self.adjust_to_rate_limits(lambda: client.post(url, headers=headers, json=data))
@@ -130,7 +126,6 @@ class Client212:
 
     async def delete(self, path: str) -> bool:
         url = self.make_url(path)
-        # print(f"{self.color}-- 212 DELETE {url}{self.color_reset}")
         headers = self.make_headers()
         async with httpx.AsyncClient() as client:
             response = await self.adjust_to_rate_limits(lambda: client.delete(url, headers=headers))
