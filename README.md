@@ -113,7 +113,7 @@ Add the following configuration to your `claude_desktop_config.json`:
 After adding the configuration, restart Claude Desktop to load the new MCP server.
 
 ### Step 4: (Strongly recommended) Make sure Claude has a math tool
-To enhance Claude's ability to handle numerical data from your trading account, ensure that the math tool is enabled in Claude Desktop.
+To enhance Claude's ability to handle numerical data from your trading account, ensure that the math tool is enabled in Claude Desktop and that the prompt discourages Claude from attempting doing any maths on its own (even Sonnet 4.5 it's very, very bad at it).
 I've used [EthanHenrickson/math-mcp](https://github.com/EthanHenrickson/math-mcp) and it works perfectly.
 
 ## Usage
