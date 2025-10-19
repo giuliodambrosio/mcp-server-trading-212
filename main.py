@@ -26,7 +26,7 @@ mcp = FastMCP("212-trading",
                 * Ticker format examples: 'AAPL_US_EQ' (not 'AAPL'), 'RRl_EQ' (UK stock)
                 
                 PORTFOLIO DATA FIELDS:
-                * quantity: number of shares held
+                * quantity: fractional number of shares held (this is a float, not int)
                 * averagePrice: average purchase price in native currency unit
                 * currentPrice: current market price in native currency unit
                 * ppl: profit/loss in account currency (already converted)
@@ -90,7 +90,7 @@ async def get_balance() -> str:
     
     Fields returned:
     - ticker: instrument identifier (e.g., 'AAPL_US_EQ', 'RRl_EQ')
-    - quantity: number of shares owned
+    - quantity: fractional number of shares owned
     - averagePrice: avg purchase price in native currency unit
     - currentPrice: current market price in native currency unit
     - ppl: profit/loss in account currency (already properly converted)
@@ -174,7 +174,7 @@ async def get_exchanges() -> str:
     
     Each dividend includes:
     - amount: dividend amount in account currency
-    - quantity: number of shares that received the dividend
+    - quantity: fractional number of shares that received the dividend
     - ticker: instrument that paid the dividend
     - paidOn: payment date
     - grossAmountPerShare: pre-tax dividend per share"""
@@ -222,7 +222,7 @@ async def get_orders() -> str:
     
     Parameters:
     - ticker: instrument ticker (e.g., 'AAPL_US_EQ')
-    - quantity: positive for buy, negative for sell
+    - quantity (float): fractional number of shares. Positive for buy, negative for sell
     - extended_hours: if True, allows trading outside regular hours (demo only)
     
     LIVE ACCOUNT LIMITATION: Only market orders are supported in live trading via API."""
@@ -238,8 +238,8 @@ async def place_market_order(ticker: str, quantity: float, extended_hours: bool 
     
     Parameters:
     - ticker: instrument ticker
-    - quantity: positive for buy, negative for sell
-    - limit_price: maximum price for buy / minimum price for sell
+    - quantity (float): fractional number of shares. Positive for buy, negative for sell
+    - limit_price (float): maximum price for buy / minimum price for sell
     - time_validity: 'DAY' (expires end of day) or 'GOOD_TILL_CANCEL'
     
     NOTE: Only available in demo accounts. Live accounts only support market orders."""
@@ -258,8 +258,8 @@ async def place_limit_order(ticker: str, quantity: float, limit_price: float, ti
     
     Parameters:
     - ticker: instrument ticker
-    - quantity: positive for buy stop, negative for sell stop (stop-loss)
-    - stop_price: trigger price
+    - quantity (float): fractional number of shares. Positive for buy stop, negative for sell stop (stop-loss)
+    - stop_price (float): trigger price
     - time_validity: 'DAY' or 'GOOD_TILL_CANCEL'
     
     NOTE: Only available in demo accounts."""
@@ -278,9 +278,9 @@ async def place_stop_order(ticker: str, quantity: float, stop_price: float, time
     
     Parameters:
     - ticker: instrument ticker
-    - quantity: positive for buy, negative for sell
-    - stop_price: trigger price
-    - limit_price: limit price once triggered
+    - quantity (float): fractional number of shares. Positive for buy, negative for sell
+    - stop_price (float): trigger price
+    - limit_price (float): limit price once triggered
     - time_validity: 'DAY' or 'GOOD_TILL_CANCEL'
     
     NOTE: Only available in demo accounts."""
