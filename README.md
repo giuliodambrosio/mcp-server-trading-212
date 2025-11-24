@@ -3,7 +3,7 @@
 A Model Context Protocol (MCP) server that provides Claude with access to your 212 Trading account. This server allows you to interact with your 212 Trading ISA account through Claude, enabling you to check balances, view portfolios, place orders, and manage pies directly from your AI assistant.
 
 Example query you can ask Claude:
-![example-claude-query-apple-stock.png](docs/example-claude-query-apple-stock.png)
+![example-claude-query-apple-stock.png](docs/212-trading-mcp-server-demo.gif)
 ## Features
 
 - **Account Management**: Get account info, balances, and portfolio details
