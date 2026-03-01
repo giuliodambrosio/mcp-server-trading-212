@@ -214,23 +214,15 @@ async def test_mcp_capabilities_reports_tools_resources_and_templates():
 
         return [R("trading212://account/info")]
 
-    class Template:
-        def __init__(self, uri_template):
-            self.uri_template = uri_template
-
-    class ResourceManager:
-        @staticmethod
-        def list_templates():
-            return [Template("trading212://portfolio/{ticker}")]
-
     mcp.list_tools = list_tools
     mcp.list_resources = list_resources
-    mcp._resource_manager = ResourceManager()
 
     payload = json.loads(await tools["mcp_capabilities"].fn())
     assert "mcp_capabilities" in payload["tools"]
     assert "trading212://account/info" in payload["resources"]
+    assert "trading212://account/info" in payload["declared_resources"]
     assert "trading212://portfolio/{ticker}" in payload["resource_templates"]
+    assert "trading212://portfolio/{ticker}" in payload["declared_resource_templates"]
 
 
 @pytest.mark.asyncio
@@ -254,25 +246,15 @@ async def test_mcp_capabilities_stringifies_non_json_uri_objects():
         def __init__(self, uri):
             self.uri = uri
 
-    class TemplateObj:
-        def __init__(self, uri_template):
-            self.uri_template = uri_template
-
     async def list_tools():
         return [ToolObj("mcp_capabilities")]
 
     async def list_resources():
         return [ResourceObj(URLLike("trading212://account/info"))]
 
-    class ResourceManager:
-        @staticmethod
-        def list_templates():
-            return [TemplateObj(URLLike("trading212://portfolio/{ticker}"))]
-
     mcp.list_tools = list_tools
     mcp.list_resources = list_resources
-    mcp._resource_manager = ResourceManager()
 
     payload = json.loads(await tools["mcp_capabilities"].fn())
     assert payload["resources"] == ["trading212://account/info"]
-    assert payload["resource_templates"] == ["trading212://portfolio/{ticker}"]
+    assert "trading212://portfolio/{ticker}" in payload["resource_templates"]

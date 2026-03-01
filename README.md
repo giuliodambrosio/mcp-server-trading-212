@@ -2,34 +2,35 @@
 
 A Model Context Protocol (MCP) server for accessing a single 212 Trading account.
 
-## What changed
-
-This server now follows a resource-first MCP structure:
-- Use **resources** for read-only data.
-- Use **tools** for state-changing operations.
-- Legacy read tools are still available for compatibility, but deprecated.
-
 ## Setup
 
-1. Install dependencies:
+1. Run interactive setup script (recommended):
+   ```bash
+   ./setup.sh
+   ```
+   The script can:
+   - install dependencies (`uv` if available, otherwise `pip`)
+   - guide you through `.env` credential setup
+   - show current `.env` (redacted) before overwrite and ask for confirmation
+   - update Claude Desktop config idempotently (`mcpServers["212-trading"]`)
+
+2. Optional setup flags:
+   ```bash
+   # auto-update Claude config without prompts
+   ./setup.sh --update-claude-config auto
+
+   # test config updates safely in a sandbox directory
+   ./setup.sh --claude-config-dir /tmp/claude-test --update-claude-config auto --non-interactive --skip-install --skip-validation
+   ```
+
+3. Manual fallback only (if you do not use `setup.sh`):
    ```bash
    uv sync
-   ```
-
-2. Configure environment:
-   ```bash
    cp .env.template .env
-   ```
-
-   Fill in:
-   ```env
-   212_API_KEY_ID=your_api_key_id
-   212_API_KEY_SECRET=your_api_secret
-   212_API_BASE_LIVE_URL=https://live.trading212.com/api/v0
-   ```
-
-3. Run server:
-   ```bash
+   # edit .env and set:
+   # 212_API_KEY_ID
+   # 212_API_KEY_SECRET
+   # 212_API_BASE_LIVE_URL
    python main.py
    ```
 

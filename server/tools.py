@@ -7,6 +7,19 @@ from typing import Any
 
 from server.client212 import Client212
 from server.read_service import ReadService
+from server.resource_registry import (
+    ACCOUNT_BALANCE,
+    ACCOUNT_INFO,
+    CONCRETE_RESOURCE_URIS,
+    DIVIDENDS,
+    EXCHANGES,
+    INSTRUMENT_TICKER,
+    INSTRUMENT_TICKERS,
+    ORDERS,
+    PIES,
+    PORTFOLIO,
+    TEMPLATE_RESOURCE_URIS,
+)
 from server.resources import (
     resource_account_balance,
     resource_account_info,
@@ -22,6 +35,11 @@ from server.resources import (
     resource_portfolio_ticker,
 )
 
+_PORTFOLIO_TICKER_RE = re.compile(r"^trading212://portfolio/(?P<ticker>[^/]+)$")
+_ORDER_ID_RE = re.compile(r"^trading212://orders/(?P<order_id>\d+)$")
+_PIE_ID_RE = re.compile(r"^trading212://pies/(?P<pie_id>\d+)$")
+_INSTRUMENT_TICKER_RE = re.compile(r"^trading212://metadata/instruments/(?P<ticker>[^/]+)$")
+
 
 def _as_json(data: Any) -> str:
     return json.dumps(data, indent=2)
@@ -36,36 +54,36 @@ def _parse_dividend_destination(value: str) -> Client212.DividendDestination:
 
 async def tool_read_resource(read_service: ReadService, uri: str) -> str:
     """Compatibility bridge for clients that cannot read MCP resources directly."""
-    if uri == "trading212://account/info":
+    if uri == ACCOUNT_INFO:
         return await resource_account_info(read_service)
-    if uri == "trading212://account/balance":
+    if uri == ACCOUNT_BALANCE:
         return await resource_account_balance(read_service)
-    if uri == "trading212://portfolio":
+    if uri == PORTFOLIO:
         return await resource_portfolio(read_service)
-    if uri == "trading212://orders":
+    if uri == ORDERS:
         return await resource_orders(read_service)
-    if uri == "trading212://pies":
+    if uri == PIES:
         return await resource_pies(read_service)
-    if uri == "trading212://dividends":
+    if uri == DIVIDENDS:
         return await resource_dividends(read_service)
-    if uri == "trading212://metadata/exchanges":
+    if uri == EXCHANGES:
         return await resource_exchanges(read_service)
-    if uri == "trading212://metadata/instruments/tickers":
+    if uri == INSTRUMENT_TICKERS:
         return await resource_instrument_tickers(read_service)
 
-    portfolio_match = re.fullmatch(r"trading212://portfolio/(?P<ticker>[^/]+)", uri)
+    portfolio_match = _PORTFOLIO_TICKER_RE.fullmatch(uri)
     if portfolio_match:
         return await resource_portfolio_ticker(read_service, portfolio_match.group("ticker"))
 
-    order_match = re.fullmatch(r"trading212://orders/(?P<order_id>\d+)", uri)
+    order_match = _ORDER_ID_RE.fullmatch(uri)
     if order_match:
         return await resource_order_id(read_service, int(order_match.group("order_id")))
 
-    pie_match = re.fullmatch(r"trading212://pies/(?P<pie_id>\d+)", uri)
+    pie_match = _PIE_ID_RE.fullmatch(uri)
     if pie_match:
         return await resource_pie_id(read_service, int(pie_match.group("pie_id")))
 
-    instrument_match = re.fullmatch(r"trading212://metadata/instruments/(?P<ticker>[^/]+)", uri)
+    instrument_match = _INSTRUMENT_TICKER_RE.fullmatch(uri)
     if instrument_match:
         return await resource_instrument_ticker(read_service, instrument_match.group("ticker"))
 
@@ -181,17 +199,15 @@ def register_tools(mcp: Any, client: Client212, read_service: ReadService) -> No
     async def mcp_capabilities() -> str:
         tools = await mcp.list_tools()
         resources = await mcp.list_resources()
-        templates = mcp._resource_manager.list_templates() if hasattr(mcp, "_resource_manager") else []
         payload = {
             "tools": [getattr(tool, "name", None) for tool in tools],
+            "declared_resources": list(CONCRETE_RESOURCE_URIS),
+            "declared_resource_templates": list(TEMPLATE_RESOURCE_URIS),
             "resources": [
                 None if getattr(resource, "uri", None) is None else str(getattr(resource, "uri", None))
                 for resource in resources
             ],
-            "resource_templates": [
-                None if getattr(template, "uri_template", None) is None else str(getattr(template, "uri_template", None))
-                for template in templates
-            ],
+            "resource_templates": list(TEMPLATE_RESOURCE_URIS),
         }
         return _as_json(payload)
 
