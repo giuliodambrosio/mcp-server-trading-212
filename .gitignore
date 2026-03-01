@@ -1,3 +1,29 @@
+# Environment and secrets
+.env
+.env.*
+!.env.template
+
+# Python cache/artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE/editor
+.idea/
 *.iml
-.venv
-.idea
+.vscode/
+
+# OS/local app files
+.DS_Store
+.claude/
