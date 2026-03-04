@@ -97,6 +97,11 @@ Other tools:
 - `read_resource(uri)`
 - `mcp_capabilities()`
 
+`read_resource` compatibility aliases (also supported):
+- `trading212://accounts/{account}/account/overview` -> account info
+- `trading212://accounts/{account}/account/info` -> account info
+- `trading212://accounts/{account}/account/balance` -> account balance
+
 ## Local Claude wiring for second account
 
 If Claude already runs this repo (`uv --directory <repo> run main.py`), only update `.env`:
