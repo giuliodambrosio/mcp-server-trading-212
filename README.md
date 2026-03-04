@@ -1,102 +1,135 @@
 # MCP Server for 212 Trading
 
-A Model Context Protocol (MCP) server for accessing a single 212 Trading account.
+A Model Context Protocol (MCP) server for Trading 212 with multi-account support.
 
 ## Setup
 
-1. Run interactive setup script (recommended):
-   ```bash
-   ./setup.sh
-   ```
-   The script can:
-   - install dependencies (`uv` if available, otherwise `pip`)
-   - guide you through `.env` credential setup
-   - show current `.env` (redacted) before overwrite and ask for confirmation
-   - update Claude Desktop config idempotently (`mcpServers["212-trading"]`)
-
-2. Optional setup flags:
-   ```bash
-   # auto-update Claude config without prompts
-   ./setup.sh --update-claude-config auto
-
-   # test config updates safely in a sandbox directory
-   ./setup.sh --claude-config-dir /tmp/claude-test --update-claude-config auto --non-interactive --skip-install --skip-validation
-   ```
-
-3. Manual fallback only (if you do not use `setup.sh`):
+1. Install dependencies:
    ```bash
    uv sync
+   ```
+2. Create local env file:
+   ```bash
    cp .env.template .env
-   # edit .env and set:
-   # 212_API_KEY_ID
-   # 212_API_KEY_SECRET
-   # 212_API_BASE_LIVE_URL
-   python main.py
+   ```
+3. Edit `.env` with `isa`, `invest`, or both.
+4. Run server:
+   ```bash
+   uv run python main.py
    ```
 
-## MCP Resources (primary read interface)
+## Environment configuration
 
-- `trading212://account/info`
-- `trading212://account/balance`
-- `trading212://portfolio`
-- `trading212://portfolio/{ticker}`
-- `trading212://orders`
-- `trading212://orders/{order_id}`
-- `trading212://pies`
-- `trading212://pies/{pie_id}`
-- `trading212://dividends`
-- `trading212://metadata/exchanges`
-- `trading212://metadata/instruments/tickers`
-- `trading212://metadata/instruments/{ticker}`
+Supported account aliases are fixed to:
+- `isa`
+- `invest`
 
-Each resource returns JSON with:
-- `data`
-- `generated_at`
-- `source_endpoint`
-- `warnings` (optional)
+You can configure any combination of the two.
 
-## MCP Tools (mutating)
+Both accounts:
+```env
+212_ACCOUNTS=isa,invest
+212_DEFAULT_ACCOUNT=isa
 
-- `place_market_order(ticker, quantity, extended_hours)`
-- `place_limit_order(ticker, quantity, limit_price, time_validity)`
-- `place_stop_order(ticker, quantity, stop_price, time_validity)`
-- `place_stop_limit_order(ticker, quantity, stop_price, limit_price, time_validity)`
-- `cancel_order(order_id)`
-- `create_pie(name, dividend_destination, instrument_shares, end_date, goal)`
-- `update_pie(pie_id, name, dividend_destination, instrument_shares, end_date, goal)`
-- `delete_pie(pie_id)`
+212_ISA_API_KEY_ID=...
+212_ISA_API_KEY_SECRET=...
+212_ISA_API_BASE_LIVE_URL=https://live.trading212.com/api/v0/
 
-Compatibility helper for clients without native MCP resource reads:
-- `read_resource(uri)` - reads any supported `trading212://...` URI and returns the same resource payload envelope.
-- `mcp_capabilities()` - diagnostic output listing registered tools/resources/resource templates.
+212_INVEST_API_KEY_ID=...
+212_INVEST_API_KEY_SECRET=...
+212_INVEST_API_BASE_LIVE_URL=https://live.trading212.com/api/v0/
+```
 
-Dividend destination accepts `REINVEST` and `CASH` (`CASH` is normalized internally to `TO_ACCOUNT_CASH`).
+ISA only:
+```env
+212_ACCOUNTS=isa
+212_DEFAULT_ACCOUNT=isa
 
-## Deprecated compatibility tools (read-only)
+212_ISA_API_KEY_ID=...
+212_ISA_API_KEY_SECRET=...
+212_ISA_API_BASE_LIVE_URL=https://live.trading212.com/api/v0/
+```
 
-Still available:
-- `get_account_info`, `get_balance`, `get_portfolio`, `get_portfolio_entry`
-- `get_instruments`, `get_instrument_tickers`, `get_exchanges`, `get_paid_dividends`
-- `get_pies`, `get_pie`, `get_orders`, `get_order`
+Invest only:
+```env
+212_ACCOUNTS=invest
+212_DEFAULT_ACCOUNT=invest
 
-These wrappers are deprecated in favor of resources.
+212_INVEST_API_KEY_ID=...
+212_INVEST_API_KEY_SECRET=...
+212_INVEST_API_BASE_LIVE_URL=https://live.trading212.com/api/v0/
+```
+
+## MCP resources
+
+All resources are account-scoped:
+
+- `trading212://accounts/{account}/info`
+- `trading212://accounts/{account}/balance`
+- `trading212://accounts/{account}/portfolio`
+- `trading212://accounts/{account}/portfolio/{ticker}`
+- `trading212://accounts/{account}/orders`
+- `trading212://accounts/{account}/orders/{order_id}`
+- `trading212://accounts/{account}/pies`
+- `trading212://accounts/{account}/pies/{pie_id}`
+- `trading212://accounts/{account}/dividends`
+- `trading212://accounts/{account}/metadata/exchanges`
+- `trading212://accounts/{account}/metadata/instruments/tickers`
+- `trading212://accounts/{account}/metadata/instruments/{ticker}`
+
+Use `{account}` as either `isa` or `invest`.
+
+## MCP tools
+
+Mutating tools require `account` (`isa` or `invest`):
+
+- `place_market_order(account, ticker, quantity, extended_hours)`
+- `place_limit_order(account, ticker, quantity, limit_price, time_validity)`
+- `place_stop_order(account, ticker, quantity, stop_price, time_validity)`
+- `place_stop_limit_order(account, ticker, quantity, stop_price, limit_price, time_validity)`
+- `cancel_order(account, order_id)`
+- `create_pie(account, name, dividend_destination, instrument_shares, end_date, goal)`
+- `update_pie(account, pie_id, name, dividend_destination, instrument_shares, end_date, goal)`
+- `delete_pie(account, pie_id)`
+
+Other tools:
+- `list_accounts()`
+- `read_resource(uri)`
+- `mcp_capabilities()`
+
+## Local Claude wiring for second account
+
+If Claude already runs this repo (`uv --directory <repo> run main.py`), only update `.env`:
+
+```env
+212_ACCOUNTS=isa,invest
+212_DEFAULT_ACCOUNT=isa
+
+212_INVEST_API_KEY_ID=<your invest account key id>
+212_INVEST_API_KEY_SECRET=<your invest account key secret>
+212_INVEST_API_BASE_LIVE_URL=https://live.trading212.com/api/v0/
+```
+
+Then restart Claude Desktop and use:
+- `account=invest` for tools
+- `trading212://accounts/invest/...` for resources
+
+## Helping Claude use this correctly
+
+When chatting with Claude, ask it to follow this sequence:
+1. call `list_accounts()`
+2. pick `isa` or `invest`
+3. use only `trading212://accounts/{account}/...` resources
+4. include `account` in every mutating tool call
+
+Useful starter message:
+
+```text
+Before doing anything, call list_accounts(). Then use account=isa (or account=invest) explicitly in every tool call and trading212://accounts/{account}/... resource URI.
+```
 
 ## Testing
 
-Run tests:
-
 ```bash
-pytest
+uv run pytest
 ```
-
-Coverage (optional):
-
-```bash
-pytest --cov=server --cov-report=term-missing
-```
-
-## Notes
-
-- `search_portfolio_entry` is intentionally not part of the public MCP surface.
-- The client includes retry handling for HTTP 429 and non-blocking rate-limit waits.
-- `main.py` is now bootstrap-only; MCP registration lives in `server/` modules.

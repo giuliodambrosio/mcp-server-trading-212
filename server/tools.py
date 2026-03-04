@@ -7,19 +7,7 @@ from typing import Any
 
 from server.client212 import Client212
 from server.read_service import ReadService
-from server.resource_registry import (
-    ACCOUNT_BALANCE,
-    ACCOUNT_INFO,
-    CONCRETE_RESOURCE_URIS,
-    DIVIDENDS,
-    EXCHANGES,
-    INSTRUMENT_TICKER,
-    INSTRUMENT_TICKERS,
-    ORDERS,
-    PIES,
-    PORTFOLIO,
-    TEMPLATE_RESOURCE_URIS,
-)
+from server.resource_registry import RESOURCE_URIS
 from server.resources import (
     resource_account_balance,
     resource_account_info,
@@ -35,10 +23,21 @@ from server.resources import (
     resource_portfolio_ticker,
 )
 
-_PORTFOLIO_TICKER_RE = re.compile(r"^trading212://portfolio/(?P<ticker>[^/]+)$")
-_ORDER_ID_RE = re.compile(r"^trading212://orders/(?P<order_id>\d+)$")
-_PIE_ID_RE = re.compile(r"^trading212://pies/(?P<pie_id>\d+)$")
-_INSTRUMENT_TICKER_RE = re.compile(r"^trading212://metadata/instruments/(?P<ticker>[^/]+)$")
+_ACCOUNT_INFO_RE = re.compile(r"^trading212://accounts/(?P<account>[^/]+)/info$")
+_ACCOUNT_BALANCE_RE = re.compile(r"^trading212://accounts/(?P<account>[^/]+)/balance$")
+_ACCOUNT_OVERVIEW_RE = re.compile(r"^trading212://accounts/(?P<account>[^/]+)/account/overview$")
+_ACCOUNT_INFO_ALIAS_RE = re.compile(r"^trading212://accounts/(?P<account>[^/]+)/account/info$")
+_ACCOUNT_BALANCE_ALIAS_RE = re.compile(r"^trading212://accounts/(?P<account>[^/]+)/account/balance$")
+_PORTFOLIO_RE = re.compile(r"^trading212://accounts/(?P<account>[^/]+)/portfolio$")
+_ORDERS_RE = re.compile(r"^trading212://accounts/(?P<account>[^/]+)/orders$")
+_PIES_RE = re.compile(r"^trading212://accounts/(?P<account>[^/]+)/pies$")
+_DIVIDENDS_RE = re.compile(r"^trading212://accounts/(?P<account>[^/]+)/dividends$")
+_EXCHANGES_RE = re.compile(r"^trading212://accounts/(?P<account>[^/]+)/metadata/exchanges$")
+_INSTRUMENT_TICKERS_RE = re.compile(r"^trading212://accounts/(?P<account>[^/]+)/metadata/instruments/tickers$")
+_PORTFOLIO_TICKER_RE = re.compile(r"^trading212://accounts/(?P<account>[^/]+)/portfolio/(?P<ticker>[^/]+)$")
+_ORDER_ID_RE = re.compile(r"^trading212://accounts/(?P<account>[^/]+)/orders/(?P<order_id>\d+)$")
+_PIE_ID_RE = re.compile(r"^trading212://accounts/(?P<account>[^/]+)/pies/(?P<pie_id>\d+)$")
+_INSTRUMENT_TICKER_RE = re.compile(r"^trading212://accounts/(?P<account>[^/]+)/metadata/instruments/(?P<ticker>[^/]+)$")
 
 
 def _as_json(data: Any) -> str:
@@ -54,53 +53,60 @@ def _parse_dividend_destination(value: str) -> Client212.DividendDestination:
 
 async def tool_read_resource(read_service: ReadService, uri: str) -> str:
     """Compatibility bridge for clients that cannot read MCP resources directly."""
-    if uri == ACCOUNT_INFO:
-        return await resource_account_info(read_service)
-    if uri == ACCOUNT_BALANCE:
-        return await resource_account_balance(read_service)
-    if uri == PORTFOLIO:
-        return await resource_portfolio(read_service)
-    if uri == ORDERS:
-        return await resource_orders(read_service)
-    if uri == PIES:
-        return await resource_pies(read_service)
-    if uri == DIVIDENDS:
-        return await resource_dividends(read_service)
-    if uri == EXCHANGES:
-        return await resource_exchanges(read_service)
-    if uri == INSTRUMENT_TICKERS:
-        return await resource_instrument_tickers(read_service)
-
-    portfolio_match = _PORTFOLIO_TICKER_RE.fullmatch(uri)
-    if portfolio_match:
-        return await resource_portfolio_ticker(read_service, portfolio_match.group("ticker"))
-
-    order_match = _ORDER_ID_RE.fullmatch(uri)
-    if order_match:
-        return await resource_order_id(read_service, int(order_match.group("order_id")))
-
-    pie_match = _PIE_ID_RE.fullmatch(uri)
-    if pie_match:
-        return await resource_pie_id(read_service, int(pie_match.group("pie_id")))
-
-    instrument_match = _INSTRUMENT_TICKER_RE.fullmatch(uri)
-    if instrument_match:
-        return await resource_instrument_ticker(read_service, instrument_match.group("ticker"))
+    if match := _ACCOUNT_INFO_RE.fullmatch(uri):
+        return await resource_account_info(read_service, match.group("account"))
+    if match := _ACCOUNT_BALANCE_RE.fullmatch(uri):
+        return await resource_account_balance(read_service, match.group("account"))
+    if match := _ACCOUNT_OVERVIEW_RE.fullmatch(uri):
+        return await resource_account_info(read_service, match.group("account"))
+    if match := _ACCOUNT_INFO_ALIAS_RE.fullmatch(uri):
+        return await resource_account_info(read_service, match.group("account"))
+    if match := _ACCOUNT_BALANCE_ALIAS_RE.fullmatch(uri):
+        return await resource_account_balance(read_service, match.group("account"))
+    if match := _PORTFOLIO_RE.fullmatch(uri):
+        return await resource_portfolio(read_service, match.group("account"))
+    if match := _ORDERS_RE.fullmatch(uri):
+        return await resource_orders(read_service, match.group("account"))
+    if match := _PIES_RE.fullmatch(uri):
+        return await resource_pies(read_service, match.group("account"))
+    if match := _DIVIDENDS_RE.fullmatch(uri):
+        return await resource_dividends(read_service, match.group("account"))
+    if match := _EXCHANGES_RE.fullmatch(uri):
+        return await resource_exchanges(read_service, match.group("account"))
+    if match := _INSTRUMENT_TICKERS_RE.fullmatch(uri):
+        return await resource_instrument_tickers(read_service, match.group("account"))
+    if match := _PORTFOLIO_TICKER_RE.fullmatch(uri):
+        return await resource_portfolio_ticker(read_service, match.group("account"), match.group("ticker"))
+    if match := _ORDER_ID_RE.fullmatch(uri):
+        return await resource_order_id(read_service, match.group("account"), int(match.group("order_id")))
+    if match := _PIE_ID_RE.fullmatch(uri):
+        return await resource_pie_id(read_service, match.group("account"), int(match.group("pie_id")))
+    if match := _INSTRUMENT_TICKER_RE.fullmatch(uri):
+        return await resource_instrument_ticker(read_service, match.group("account"), match.group("ticker"))
 
     raise ValueError(f"Unsupported resource URI: {uri}")
 
 
-async def tool_place_market_order(client: Client212, ticker: str, quantity: float, extended_hours: bool = False) -> str:
+async def tool_place_market_order(
+    read_service: ReadService,
+    account: str,
+    ticker: str,
+    quantity: float,
+    extended_hours: bool = False,
+) -> str:
+    client = read_service.get_client(account)
     return _as_json(await client.place_market_order(quantity, ticker, extended_hours))
 
 
 async def tool_place_limit_order(
-    client: Client212,
+    read_service: ReadService,
+    account: str,
     ticker: str,
     quantity: float,
     limit_price: float,
     time_validity: str,
 ) -> str:
+    client = read_service.get_client(account)
     return _as_json(
         await client.place_limit_order(
             limit_price=limit_price,
@@ -111,7 +117,15 @@ async def tool_place_limit_order(
     )
 
 
-async def tool_place_stop_order(client: Client212, ticker: str, quantity: float, stop_price: float, time_validity: str) -> str:
+async def tool_place_stop_order(
+    read_service: ReadService,
+    account: str,
+    ticker: str,
+    quantity: float,
+    stop_price: float,
+    time_validity: str,
+) -> str:
+    client = read_service.get_client(account)
     return _as_json(
         await client.place_stop_order(
             stop_price=stop_price,
@@ -123,13 +137,15 @@ async def tool_place_stop_order(client: Client212, ticker: str, quantity: float,
 
 
 async def tool_place_stop_limit_order(
-    client: Client212,
+    read_service: ReadService,
+    account: str,
     ticker: str,
     quantity: float,
     stop_price: float,
     limit_price: float,
     time_validity: str,
 ) -> str:
+    client = read_service.get_client(account)
     return _as_json(
         await client.place_stop_limit_order(
             stop_price=stop_price,
@@ -141,19 +157,22 @@ async def tool_place_stop_limit_order(
     )
 
 
-async def tool_cancel_order(client: Client212, order_id: int) -> str:
+async def tool_cancel_order(read_service: ReadService, account: str, order_id: int) -> str:
+    client = read_service.get_client(account)
     await client.cancel_order(order_id)
     return f"Order with ID {order_id} cancelled."
 
 
 async def tool_create_pie(
-    client: Client212,
+    read_service: ReadService,
+    account: str,
     name: str,
     dividend_destination: str,
     instrument_shares: dict[str, float],
     end_date: datetime | None,
     goal: float | None,
 ) -> str:
+    client = read_service.get_client(account)
     return _as_json(
         await client.create_pie(
             name=name,
@@ -166,7 +185,8 @@ async def tool_create_pie(
 
 
 async def tool_update_pie(
-    client: Client212,
+    read_service: ReadService,
+    account: str,
     pie_id: int,
     name: str,
     dividend_destination: str,
@@ -174,6 +194,7 @@ async def tool_update_pie(
     end_date: datetime | None,
     goal: float | None,
 ) -> str:
+    client = read_service.get_client(account)
     return _as_json(
         await client.update_pie(
             pie_id=pie_id,
@@ -186,12 +207,13 @@ async def tool_update_pie(
     )
 
 
-async def tool_delete_pie(client: Client212, pie_id: int) -> str:
+async def tool_delete_pie(read_service: ReadService, account: str, pie_id: int) -> str:
+    client = read_service.get_client(account)
     await client.delete_pie(pie_id)
     return f"Pie with ID {pie_id} deleted."
 
 
-def register_tools(mcp: Any, client: Client212, read_service: ReadService) -> None:
+def register_tools(mcp: Any, read_service: ReadService) -> None:
     @mcp.tool(
         title="MCP capabilities",
         description="Diagnostic: returns registered tools, concrete resources, and resource templates.",
@@ -201,62 +223,76 @@ def register_tools(mcp: Any, client: Client212, read_service: ReadService) -> No
         resources = await mcp.list_resources()
         payload = {
             "tools": [getattr(tool, "name", None) for tool in tools],
-            "declared_resources": list(CONCRETE_RESOURCE_URIS),
-            "declared_resource_templates": list(TEMPLATE_RESOURCE_URIS),
+            "declared_resources": list(RESOURCE_URIS),
             "resources": [
                 None if getattr(resource, "uri", None) is None else str(getattr(resource, "uri", None))
                 for resource in resources
             ],
-            "resource_templates": list(TEMPLATE_RESOURCE_URIS),
+            "accounts": read_service.list_accounts(),
+            "default_account": read_service.default_account,
         }
         return _as_json(payload)
 
     @mcp.tool(
+        title="List configured accounts",
+        description="Returns account aliases configured in .env and the default account.",
+    )
+    async def list_accounts() -> str:
+        return _as_json({"accounts": read_service.list_accounts(), "default_account": read_service.default_account})
+
+    @mcp.tool(
         title="Read resource URI",
-        description="Compatibility bridge for clients that cannot call MCP resources directly. Pass a trading212:// URI.",
+        description=(
+            "Compatibility bridge for clients that cannot call MCP resources directly. "
+            "Pass a trading212://accounts/{account}/... URI."
+        ),
     )
     async def read_resource(uri: str) -> str:
         return await tool_read_resource(read_service, uri)
 
-    # Mutating tools
     @mcp.tool(title="Place market order")
-    async def place_market_order(ticker: str, quantity: float, extended_hours: bool = False) -> str:
-        return await tool_place_market_order(client, ticker, quantity, extended_hours)
+    async def place_market_order(account: str, ticker: str, quantity: float, extended_hours: bool = False) -> str:
+        return await tool_place_market_order(read_service, account, ticker, quantity, extended_hours)
 
     @mcp.tool(title="Place limit order")
-    async def place_limit_order(ticker: str, quantity: float, limit_price: float, time_validity: str) -> str:
-        return await tool_place_limit_order(client, ticker, quantity, limit_price, time_validity)
+    async def place_limit_order(account: str, ticker: str, quantity: float, limit_price: float, time_validity: str) -> str:
+        return await tool_place_limit_order(read_service, account, ticker, quantity, limit_price, time_validity)
 
     @mcp.tool(title="Place stop order")
-    async def place_stop_order(ticker: str, quantity: float, stop_price: float, time_validity: str) -> str:
-        return await tool_place_stop_order(client, ticker, quantity, stop_price, time_validity)
+    async def place_stop_order(account: str, ticker: str, quantity: float, stop_price: float, time_validity: str) -> str:
+        return await tool_place_stop_order(read_service, account, ticker, quantity, stop_price, time_validity)
 
     @mcp.tool(title="Place stop-limit order")
     async def place_stop_limit_order(
+        account: str,
         ticker: str,
         quantity: float,
         stop_price: float,
         limit_price: float,
         time_validity: str,
     ) -> str:
-        return await tool_place_stop_limit_order(client, ticker, quantity, stop_price, limit_price, time_validity)
+        return await tool_place_stop_limit_order(
+            read_service, account, ticker, quantity, stop_price, limit_price, time_validity
+        )
 
     @mcp.tool(title="Cancel order")
-    async def cancel_order(order_id: int) -> str:
-        return await tool_cancel_order(client, order_id)
+    async def cancel_order(account: str, order_id: int) -> str:
+        return await tool_cancel_order(read_service, account, order_id)
 
     @mcp.tool(title="Create new pie")
     async def create_pie(
+        account: str,
         name: str,
         dividend_destination: str,
         instrument_shares: dict[str, float],
         end_date: datetime | None = None,
         goal: float | None = None,
     ) -> str:
-        return await tool_create_pie(client, name, dividend_destination, instrument_shares, end_date, goal)
+        return await tool_create_pie(read_service, account, name, dividend_destination, instrument_shares, end_date, goal)
 
     @mcp.tool(title="Update existing pie")
     async def update_pie(
+        account: str,
         pie_id: int,
         name: str,
         dividend_destination: str,
@@ -264,57 +300,17 @@ def register_tools(mcp: Any, client: Client212, read_service: ReadService) -> No
         end_date: datetime | None = None,
         goal: float | None = None,
     ) -> str:
-        return await tool_update_pie(client, pie_id, name, dividend_destination, instrument_shares, end_date, goal)
+        return await tool_update_pie(
+            read_service,
+            account,
+            pie_id,
+            name,
+            dividend_destination,
+            instrument_shares,
+            end_date,
+            goal,
+        )
 
     @mcp.tool(title="Delete pie")
-    async def delete_pie(pie_id: int) -> str:
-        return await tool_delete_pie(client, pie_id)
-
-    # Deprecated read-only wrappers kept for backward compatibility.
-    @mcp.tool(title="[Deprecated] Get account info", description="Deprecated: use resource trading212://account/info")
-    async def get_account_info() -> str:
-        return _as_json(await read_service.get_account_info())
-
-    @mcp.tool(title="[Deprecated] Get account balance", description="Deprecated: use resource trading212://account/balance")
-    async def get_balance() -> str:
-        return _as_json(await read_service.get_balance())
-
-    @mcp.tool(title="[Deprecated] Get all portfolio positions", description="Deprecated: use resource trading212://portfolio")
-    async def get_portfolio() -> str:
-        return _as_json(await read_service.get_portfolio())
-
-    @mcp.tool(title="[Deprecated] Get specific portfolio position", description="Deprecated: use resource trading212://portfolio/{ticker}")
-    async def get_portfolio_entry(ticker: str) -> str:
-        return _as_json(await read_service.get_portfolio_entry(ticker))
-
-    @mcp.tool(title="[Deprecated] Get all available instruments", description="Deprecated: use resource trading212://metadata/instruments/{ticker}")
-    async def get_instruments() -> str:
-        return _as_json(await read_service.get_instruments())
-
-    @mcp.tool(title="[Deprecated] Get instrument ticker list", description="Deprecated: use resource trading212://metadata/instruments/tickers")
-    async def get_instrument_tickers() -> str:
-        return _as_json(await read_service.get_instrument_tickers())
-
-    @mcp.tool(title="[Deprecated] Get all exchanges", description="Deprecated: use resource trading212://metadata/exchanges")
-    async def get_exchanges() -> str:
-        return _as_json(await read_service.get_exchanges())
-
-    @mcp.tool(title="[Deprecated] Get dividend payment history", description="Deprecated: use resource trading212://dividends")
-    async def get_paid_dividends() -> str:
-        return _as_json(await read_service.get_dividends())
-
-    @mcp.tool(title="[Deprecated] Get all pies", description="Deprecated: use resource trading212://pies")
-    async def get_pies() -> str:
-        return _as_json(await read_service.get_pies())
-
-    @mcp.tool(title="[Deprecated] Get detailed pie information", description="Deprecated: use resource trading212://pies/{pie_id}")
-    async def get_pie(pie_id: int) -> str:
-        return _as_json(await read_service.get_pie(pie_id))
-
-    @mcp.tool(title="[Deprecated] Get all orders", description="Deprecated: use resource trading212://orders")
-    async def get_orders() -> str:
-        return _as_json(await read_service.get_orders())
-
-    @mcp.tool(title="[Deprecated] Get order details", description="Deprecated: use resource trading212://orders/{order_id}")
-    async def get_order(order_id: int) -> str:
-        return _as_json(await read_service.get_order(order_id))
+    async def delete_pie(account: str, pie_id: int) -> str:
+        return await tool_delete_pie(read_service, account, pie_id)
