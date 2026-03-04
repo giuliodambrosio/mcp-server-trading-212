@@ -4,6 +4,20 @@ A Model Context Protocol (MCP) server for Trading 212 with multi-account support
 
 ## Setup
 
+### Automated bootstrap (recommended)
+
+Run:
+```bash
+./setup.sh
+```
+
+What `setup.sh` does:
+- installs dependencies (`uv` when available, otherwise `pip`)
+- configures multi-account `.env` interactively (`isa`, `invest`, or both)
+- can update Claude Desktop MCP config (optional prompt)
+
+### Manual setup (alternative)
+
 1. Install dependencies:
    ```bash
    uv sync
@@ -102,7 +116,31 @@ Other tools:
 - `trading212://accounts/{account}/account/info` -> account info
 - `trading212://accounts/{account}/account/balance` -> account balance
 
-## Local Claude wiring for second account
+## Claude Desktop integration (optional)
+
+This section is only for Claude Desktop users.  
+If you use another MCP client, you can skip this and configure your client directly to run this server.
+
+### Option A: let setup script update Claude config
+
+```bash
+./setup.sh --update-claude-config auto
+```
+
+This keeps your existing non-`212-trading` MCP entries and updates only `mcpServers["212-trading"]`.
+
+### Option B: manual Claude config entry
+
+Add this server to `mcpServers` in Claude Desktop config:
+
+```json
+{
+  "command": "uv",
+  "args": ["--directory", "/ABS/PATH/TO/mcp-server-212-trading", "run", "main.py"]
+}
+```
+
+### Second account wiring in Claude
 
 If Claude already runs this repo (`uv --directory <repo> run main.py`), only update `.env`:
 

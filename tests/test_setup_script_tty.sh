@@ -15,10 +15,11 @@ print("ok")
 PY
 
 cat > "$TMP_DIR/.env" <<'ENV'
-212_API_KEY_ID=ABCD1234
-212_API_KEY_SECRET=SECRETVALUE
-212_API_BASE_DEMO_URL=https://demo.trading212.com/api/v0/
-212_API_BASE_LIVE_URL=https://live.trading212.com/api/v0/
+212_ACCOUNTS=isa
+212_DEFAULT_ACCOUNT=isa
+212_ISA_API_KEY_ID=ABCD1234
+212_ISA_API_KEY_SECRET=SECRETVALUE
+212_ISA_API_BASE_LIVE_URL=https://live.trading212.com/api/v0/
 ENV
 
 cd "$TMP_DIR"
@@ -33,13 +34,13 @@ if ! grep -q "Current .env values (redacted):" run.log; then
   exit 1
 fi
 
-if ! grep -q "212_API_KEY_ID=AB\*\*\*34" run.log; then
+if ! grep -q "212_ISA_API_KEY_ID=AB\*\*\*34" run.log; then
   echo "Missing redacted API key"
   cat run.log
   exit 1
 fi
 
-if ! grep -q "212_API_KEY_SECRET=SE\*\*\*UE" run.log; then
+if ! grep -q "212_ISA_API_KEY_SECRET=SE\*\*\*UE" run.log; then
   echo "Missing redacted API secret"
   cat run.log
   exit 1

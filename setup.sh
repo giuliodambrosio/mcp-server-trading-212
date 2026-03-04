@@ -63,7 +63,7 @@ print_redacted_env_file() {
         local key="${line%%=*}"
         local value="${line#*=}"
         case "$key" in
-            212_API_KEY_SECRET|212_API_KEY_ID)
+            212_API_KEY_SECRET|212_API_KEY_ID|212_*_API_KEY_ID|212_*_API_KEY_SECRET)
                 echo "${key}=$(redact_value "$value")"
                 ;;
             *)
@@ -217,17 +217,88 @@ install_dependencies() {
     fi
 }
 
+normalize_accounts_csv() {
+    local raw="$1"
+    local normalized=""
+    local seen_isa=false
+    local seen_invest=false
+    local token=""
+
+    IFS=',' read -r -a parts <<< "$raw"
+    for part in "${parts[@]}"; do
+        token="${part#"${part%%[![:space:]]*}"}"
+        token="${token%"${token##*[![:space:]]}"}"
+        if [ -z "$token" ]; then
+            continue
+        fi
+        token="$(echo "$token" | tr '[:upper:]' '[:lower:]')"
+        case "$token" in
+            isa)
+                if [ "$seen_isa" = false ]; then
+                    normalized="${normalized:+${normalized},}isa"
+                    seen_isa=true
+                fi
+                ;;
+            invest)
+                if [ "$seen_invest" = false ]; then
+                    normalized="${normalized:+${normalized},}invest"
+                    seen_invest=true
+                fi
+                ;;
+            *)
+                print_error "Unsupported account alias '${token}'. Supported values: isa, invest"
+                return 1
+                ;;
+        esac
+    done
+
+    if [ -z "$normalized" ]; then
+        print_error "At least one account must be selected (isa and/or invest)."
+        return 1
+    fi
+
+    echo "$normalized"
+}
+
+account_selected() {
+    local accounts_csv="$1"
+    local account="$2"
+    [[ ",${accounts_csv}," == *",${account},"* ]]
+}
+
 prompt_env_configuration() {
     local env_file=".env"
-    local existing_key_id=""
-    local existing_key_secret=""
-    local existing_live_url=""
-    local existing_demo_url=""
+    local existing_accounts=""
+    local existing_default_account=""
+    local existing_isa_key_id=""
+    local existing_isa_key_secret=""
+    local existing_isa_live_url=""
+    local existing_invest_key_id=""
+    local existing_invest_key_secret=""
+    local existing_invest_live_url=""
 
-    existing_key_id=$(get_env_value "212_API_KEY_ID" "$env_file")
-    existing_key_secret=$(get_env_value "212_API_KEY_SECRET" "$env_file")
-    existing_live_url=$(get_env_value "212_API_BASE_LIVE_URL" "$env_file")
-    existing_demo_url=$(get_env_value "212_API_BASE_DEMO_URL" "$env_file")
+    existing_accounts=$(get_env_value "212_ACCOUNTS" "$env_file")
+    existing_default_account=$(get_env_value "212_DEFAULT_ACCOUNT" "$env_file")
+
+    # Backfill ISA defaults from legacy single-account keys when present.
+    existing_isa_key_id=$(get_env_value "212_ISA_API_KEY_ID" "$env_file")
+    if [ -z "$existing_isa_key_id" ]; then
+        existing_isa_key_id=$(get_env_value "212_API_KEY_ID" "$env_file")
+    fi
+
+    existing_isa_key_secret=$(get_env_value "212_ISA_API_KEY_SECRET" "$env_file")
+    if [ -z "$existing_isa_key_secret" ]; then
+        existing_isa_key_secret=$(get_env_value "212_API_KEY_SECRET" "$env_file")
+    fi
+
+    existing_isa_live_url=$(get_env_value "212_ISA_API_BASE_LIVE_URL" "$env_file")
+    if [ -z "$existing_isa_live_url" ]; then
+        existing_isa_live_url=$(get_env_value "212_API_BASE_LIVE_URL" "$env_file")
+    fi
+
+    existing_invest_key_id=$(get_env_value "212_INVEST_API_KEY_ID" "$env_file")
+    existing_invest_key_secret=$(get_env_value "212_INVEST_API_KEY_SECRET" "$env_file")
+    existing_invest_live_url=$(get_env_value "212_INVEST_API_BASE_LIVE_URL" "$env_file")
 
     print_status "Configuring .env file"
     echo "Create your Trading 212 API key here:"
@@ -257,39 +328,91 @@ prompt_env_configuration() {
         return
     fi
 
-    local key_id="${existing_key_id}"
-    local key_secret="${existing_key_secret}"
-    local live_url="${existing_live_url:-https://live.trading212.com/api/v0/}"
-    local demo_url="${existing_demo_url:-https://demo.trading212.com/api/v0/}"
+    local accounts_csv="${existing_accounts:-isa,invest}"
+    local input_accounts=""
+    read -r -p "212_ACCOUNTS [${accounts_csv}] (allowed: isa,invest): " input_accounts
+    accounts_csv=$(normalize_accounts_csv "${input_accounts:-$accounts_csv}") || exit 1
 
-    read -r -p "212_API_KEY_ID [${key_id:-required}]: " input_key_id
-    key_id=${input_key_id:-$key_id}
-    require_non_empty "$key_id" "212_API_KEY_ID"
-
-    if [ -n "$key_secret" ]; then
-        read -r -s -p "212_API_KEY_SECRET [press Enter to keep current]: " input_key_secret
-        echo ""
-        key_secret=${input_key_secret:-$key_secret}
-    else
-        read -r -s -p "212_API_KEY_SECRET [required]: " input_key_secret
-        echo ""
-        key_secret="$input_key_secret"
+    local default_account="${existing_default_account}"
+    if [ -z "$default_account" ] || ! account_selected "$accounts_csv" "$default_account"; then
+        default_account="${accounts_csv%%,*}"
     fi
-    require_non_empty "$key_secret" "212_API_KEY_SECRET"
+    local input_default_account=""
+    read -r -p "212_DEFAULT_ACCOUNT [${default_account}]: " input_default_account
+    default_account="$(echo "${input_default_account:-$default_account}" | tr '[:upper:]' '[:lower:]')"
+    if ! account_selected "$accounts_csv" "$default_account"; then
+        print_error "212_DEFAULT_ACCOUNT must be one of 212_ACCOUNTS."
+        exit 1
+    fi
 
-    read -r -p "212_API_BASE_LIVE_URL [${live_url}]: " input_live_url
-    live_url=${input_live_url:-$live_url}
-    require_non_empty "$live_url" "212_API_BASE_LIVE_URL"
+    local isa_key_id="${existing_isa_key_id}"
+    local isa_key_secret="${existing_isa_key_secret}"
+    local isa_live_url="${existing_isa_live_url:-https://live.trading212.com/api/v0/}"
 
-    read -r -p "212_API_BASE_DEMO_URL [${demo_url}]: " input_demo_url
-    demo_url=${input_demo_url:-$demo_url}
+    local invest_key_id="${existing_invest_key_id}"
+    local invest_key_secret="${existing_invest_key_secret}"
+    local invest_live_url="${existing_invest_live_url:-https://live.trading212.com/api/v0/}"
+
+    if account_selected "$accounts_csv" "isa"; then
+        echo ""
+        echo "Configure ISA account credentials:"
+        read -r -p "212_ISA_API_KEY_ID [${isa_key_id:-required}]: " input_isa_key_id
+        isa_key_id=${input_isa_key_id:-$isa_key_id}
+        require_non_empty "$isa_key_id" "212_ISA_API_KEY_ID"
+
+        if [ -n "$isa_key_secret" ]; then
+            read -r -s -p "212_ISA_API_KEY_SECRET [press Enter to keep current]: " input_isa_key_secret
+            echo ""
+            isa_key_secret=${input_isa_key_secret:-$isa_key_secret}
+        else
+            read -r -s -p "212_ISA_API_KEY_SECRET [required]: " input_isa_key_secret
+            echo ""
+            isa_key_secret="$input_isa_key_secret"
+        fi
+        require_non_empty "$isa_key_secret" "212_ISA_API_KEY_SECRET"
+
+        read -r -p "212_ISA_API_BASE_LIVE_URL [${isa_live_url}]: " input_isa_live_url
+        isa_live_url=${input_isa_live_url:-$isa_live_url}
+        require_non_empty "$isa_live_url" "212_ISA_API_BASE_LIVE_URL"
+    fi
+
+    if account_selected "$accounts_csv" "invest"; then
+        echo ""
+        echo "Configure Invest account credentials:"
+        read -r -p "212_INVEST_API_KEY_ID [${invest_key_id:-required}]: " input_invest_key_id
+        invest_key_id=${input_invest_key_id:-$invest_key_id}
+        require_non_empty "$invest_key_id" "212_INVEST_API_KEY_ID"
+
+        if [ -n "$invest_key_secret" ]; then
+            read -r -s -p "212_INVEST_API_KEY_SECRET [press Enter to keep current]: " input_invest_key_secret
+            echo ""
+            invest_key_secret=${input_invest_key_secret:-$invest_key_secret}
+        else
+            read -r -s -p "212_INVEST_API_KEY_SECRET [required]: " input_invest_key_secret
+            echo ""
+            invest_key_secret="$input_invest_key_secret"
+        fi
+        require_non_empty "$invest_key_secret" "212_INVEST_API_KEY_SECRET"
+
+        read -r -p "212_INVEST_API_BASE_LIVE_URL [${invest_live_url}]: " input_invest_live_url
+        invest_live_url=${input_invest_live_url:-$invest_live_url}
+        require_non_empty "$invest_live_url" "212_INVEST_API_BASE_LIVE_URL"
+    fi
 
     echo ""
     echo "New .env values to be written (redacted):"
-    echo "212_API_KEY_ID=$(redact_value "$key_id")"
-    echo "212_API_KEY_SECRET=$(redact_value "$key_secret")"
-    echo "212_API_BASE_DEMO_URL=${demo_url}"
-    echo "212_API_BASE_LIVE_URL=${live_url}"
+    echo "212_ACCOUNTS=${accounts_csv}"
+    echo "212_DEFAULT_ACCOUNT=${default_account}"
+    if account_selected "$accounts_csv" "isa"; then
+        echo "212_ISA_API_KEY_ID=$(redact_value "$isa_key_id")"
+        echo "212_ISA_API_KEY_SECRET=$(redact_value "$isa_key_secret")"
+        echo "212_ISA_API_BASE_LIVE_URL=${isa_live_url}"
+    fi
+    if account_selected "$accounts_csv" "invest"; then
+        echo "212_INVEST_API_KEY_ID=$(redact_value "$invest_key_id")"
+        echo "212_INVEST_API_KEY_SECRET=$(redact_value "$invest_key_secret")"
+        echo "212_INVEST_API_BASE_LIVE_URL=${invest_live_url}"
+    fi
     echo ""
 
     local write_choice="Y"
@@ -300,12 +423,22 @@ prompt_env_configuration() {
         return
     fi
 
-    cat > "$env_file" <<ENVEOF
-212_API_KEY_ID=${key_id}
-212_API_KEY_SECRET=${key_secret}
-212_API_BASE_DEMO_URL=${demo_url}
-212_API_BASE_LIVE_URL=${live_url}
-ENVEOF
+    {
+        echo "212_ACCOUNTS=${accounts_csv}"
+        echo "212_DEFAULT_ACCOUNT=${default_account}"
+        echo ""
+        if account_selected "$accounts_csv" "isa"; then
+            echo "212_ISA_API_KEY_ID=${isa_key_id}"
+            echo "212_ISA_API_KEY_SECRET=${isa_key_secret}"
+            echo "212_ISA_API_BASE_LIVE_URL=${isa_live_url}"
+            echo ""
+        fi
+        if account_selected "$accounts_csv" "invest"; then
+            echo "212_INVEST_API_KEY_ID=${invest_key_id}"
+            echo "212_INVEST_API_KEY_SECRET=${invest_key_secret}"
+            echo "212_INVEST_API_BASE_LIVE_URL=${invest_live_url}"
+        fi
+    } > "$env_file"
 
     chmod 600 "$env_file" || true
     print_success "Wrote ${env_file}"
@@ -358,19 +491,31 @@ print_desired_claude_entry() {
 }
 JSON
     else
-        local env_key_id env_key_secret env_live_url
-        env_key_id=$(get_env_value "212_API_KEY_ID" ".env")
-        env_key_secret=$(get_env_value "212_API_KEY_SECRET" ".env")
-        env_live_url=$(get_env_value "212_API_BASE_LIVE_URL" ".env")
+        local env_accounts env_default
+        local env_isa_key_id env_isa_key_secret env_isa_live_url
+        local env_invest_key_id env_invest_key_secret env_invest_live_url
+        env_accounts=$(get_env_value "212_ACCOUNTS" ".env")
+        env_default=$(get_env_value "212_DEFAULT_ACCOUNT" ".env")
+        env_isa_key_id=$(get_env_value "212_ISA_API_KEY_ID" ".env")
+        env_isa_key_secret=$(get_env_value "212_ISA_API_KEY_SECRET" ".env")
+        env_isa_live_url=$(get_env_value "212_ISA_API_BASE_LIVE_URL" ".env")
+        env_invest_key_id=$(get_env_value "212_INVEST_API_KEY_ID" ".env")
+        env_invest_key_secret=$(get_env_value "212_INVEST_API_KEY_SECRET" ".env")
+        env_invest_live_url=$(get_env_value "212_INVEST_API_BASE_LIVE_URL" ".env")
 
         cat <<JSON
 {
   "command": "${PYTHON_CMD}",
   "args": ["${cwd}/main.py"],
   "env": {
-    "212_API_KEY_ID": "${env_key_id:-your_api_key_id}",
-    "212_API_KEY_SECRET": "${env_key_secret:-your_api_secret}",
-    "212_API_BASE_LIVE_URL": "${env_live_url:-https://live.trading212.com/api/v0/}"
+    "212_ACCOUNTS": "${env_accounts:-isa,invest}",
+    "212_DEFAULT_ACCOUNT": "${env_default:-isa}",
+    "212_ISA_API_KEY_ID": "${env_isa_key_id:-your_isa_api_key_id}",
+    "212_ISA_API_KEY_SECRET": "${env_isa_key_secret:-your_isa_api_secret}",
+    "212_ISA_API_BASE_LIVE_URL": "${env_isa_live_url:-https://live.trading212.com/api/v0/}",
+    "212_INVEST_API_KEY_ID": "${env_invest_key_id:-your_invest_api_key_id}",
+    "212_INVEST_API_KEY_SECRET": "${env_invest_key_secret:-your_invest_api_secret}",
+    "212_INVEST_API_BASE_LIVE_URL": "${env_invest_live_url:-https://live.trading212.com/api/v0/}"
   }
 }
 JSON
@@ -454,9 +599,14 @@ else:
         "command": py_cmd,
         "args": [f"{cwd}/main.py"],
         "env": {
-            "212_API_KEY_ID": env_data.get("212_API_KEY_ID", "your_api_key_id"),
-            "212_API_KEY_SECRET": env_data.get("212_API_KEY_SECRET", "your_api_secret"),
-            "212_API_BASE_LIVE_URL": env_data.get("212_API_BASE_LIVE_URL", "https://live.trading212.com/api/v0/"),
+            "212_ACCOUNTS": env_data.get("212_ACCOUNTS", "isa,invest"),
+            "212_DEFAULT_ACCOUNT": env_data.get("212_DEFAULT_ACCOUNT", "isa"),
+            "212_ISA_API_KEY_ID": env_data.get("212_ISA_API_KEY_ID", "your_isa_api_key_id"),
+            "212_ISA_API_KEY_SECRET": env_data.get("212_ISA_API_KEY_SECRET", "your_isa_api_secret"),
+            "212_ISA_API_BASE_LIVE_URL": env_data.get("212_ISA_API_BASE_LIVE_URL", "https://live.trading212.com/api/v0/"),
+            "212_INVEST_API_KEY_ID": env_data.get("212_INVEST_API_KEY_ID", "your_invest_api_key_id"),
+            "212_INVEST_API_KEY_SECRET": env_data.get("212_INVEST_API_KEY_SECRET", "your_invest_api_secret"),
+            "212_INVEST_API_BASE_LIVE_URL": env_data.get("212_INVEST_API_BASE_LIVE_URL", "https://live.trading212.com/api/v0/"),
         },
     }
 
